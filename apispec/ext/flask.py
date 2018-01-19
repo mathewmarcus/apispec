@@ -74,12 +74,12 @@ except ImportError:
 from flask import current_app
 from flask.views import MethodView
 
-from apispec.compat import iteritems
+from apispec.compat import iteritems, iterkeys
 from apispec import Path
 from apispec.exceptions import APISpecError
 from apispec import utils
 
-def _rule_for_view(view):
+def _rule_for_view(view, path=None, operations={}):
     view_funcs = current_app.view_functions
     endpoint = None
     for ep, view_func in iteritems(view_funcs):
@@ -88,8 +88,19 @@ def _rule_for_view(view):
     if not endpoint:
         raise APISpecError('Could not find endpoint for view {0}'.format(view))
 
-    # WARNING: Assume 1 rule per view function for now
-    rule = current_app.url_map._rules_by_endpoint[endpoint][0]
+
+    operations = {operation.upper() for operation in iterkeys(operations)}
+    if path:
+        for rule in current_app.url_map._rules_by_endpoint[endpoint]:
+            if not (path == flaskpath2swagger(rule.rule) and (operations < set(rule.methods))):
+                continue
+            else:
+                break
+        else:
+            raise APISpecError('Could not find endpoint with path {0} and methods {1} for view {2}'.format(path, list(operations), view))
+    else:
+        rule = current_app.url_map._rules_by_endpoint[endpoint][0]
+
     return rule
 
 # from flask-restplus
@@ -102,9 +113,9 @@ def flaskpath2swagger(path):
     """
     return RE_URL.sub(r'{\1}', path)
 
-def path_from_view(spec, view, **kwargs):
+def path_from_view(spec, view, path=None, operations=None, **kwargs):
     """Path helper that allows passing a Flask view function."""
-    rule = _rule_for_view(view)
+    rule = _rule_for_view(view, path=path.path, operations=operations if operations else {})
     path = flaskpath2swagger(rule.rule)
     app_root = current_app.config['APPLICATION_ROOT'] or '/'
     path = urljoin(app_root.rstrip('/') + '/', path.lstrip('/'))

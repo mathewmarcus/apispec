@@ -89,8 +89,8 @@ def _rule_for_view(view, path=None, operations={}):
         raise APISpecError('Could not find endpoint for view {0}'.format(view))
 
 
-    operations = {operation.upper() for operation in iterkeys(operations)}
     if path:
+        operations = {operation.upper() for operation in iterkeys(operations)}
         for rule in current_app.url_map._rules_by_endpoint[endpoint]:
             if not (path == flaskpath2swagger(rule.rule) and (operations < set(rule.methods))):
                 continue
